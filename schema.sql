@@ -18,7 +18,7 @@ CREATE TABLE system_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT UNIQUE NOT NULL,
     display_name TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at DATE DEFAULT CURRENT_DATE
 );
 
 CREATE TABLE user_categories (
@@ -51,5 +51,29 @@ CREATE TABLE expenses(
     FOREIGN KEY (user_category_id) REFERENCES user_categories(id) ON DELETE SET NULL
 );
 
+
+-- Initialize system_categories with seed value
+INSERT INTO system_categories (name, display_name) VALUES
+('SALARY', 'salary'),
+('RENT', 'rent'),
+('UTILITIES', 'utilities'),
+('GROCERY', 'grocery'),
+('EMI', 'emi'),
+('TRANSPORT', 'transport'),
+('FREELANCE', 'freelance'),
+('INVESTMENT', 'investment'),
+('INVESTMENT RETURN', 'investment return'),
+('SHOPPING', 'shopping'),
+('SUBSCRIPTION', 'subscription'),
+('REMITTANCE SENT', 'remittance sent'),
+('REMITTANCE RECEIVED', 'remittance received'),
+('LEISURE', 'leisure'),
+('MEDICAL', 'medical');
+
+
+-- Doing essential indexing for now
+-- Further indexing will be done once app basic operations are built and database queries are decided
+CREATE INDEX index_user_categories_user_id ON user_categories(user_id);
+CREATE INDEX index_expenses_user_id ON expenses(user_id);
 
 
