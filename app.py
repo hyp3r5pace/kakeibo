@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify, session
 import bcrypt
 from database import create_user, get_user_by_email, get_user_by_id
 from auth import auth_bp
+from expenses import expenses_bp
 
 load_dotenv()
 
@@ -15,6 +16,7 @@ if not app.secret_key:
     raise ValueError("No SECRET_KEY set! Create .env file with SECRET_KEY=...")
 
 app.register_blueprint(auth_bp)
+app.register_blueprint(expenses_bp)
 
 @app.route('/')
 def home():

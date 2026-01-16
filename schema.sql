@@ -74,6 +74,6 @@ INSERT INTO system_categories (name, display_name) VALUES
 -- Doing essential indexing for now
 -- Further indexing will be done once app basic operations are built and database queries are decided
 CREATE INDEX index_user_categories_user_id ON user_categories(user_id);
-CREATE INDEX index_expenses_user_id ON expenses(user_id);
+CREATE INDEX index_expenses_user_id ON expenses(user_id, date);
 
 
