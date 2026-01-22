@@ -74,113 +74,6 @@ def get_user_by_id(user_id):
         ).fetchone()
         return dict(user) if user else None
 
-# ==================== CATEGORY FUNCTIONS ====================
-
-def get_system_categories():
-    """
-    Get all system categories
-    
-    :return: List of system category records
-    """
-    with get_db_connection() as conn:
-        categories = conn.execute(
-            """SELECT 
-                id,
-                name,
-                display_name,
-                created_at
-            FROM system_categories
-            ORDER BY display_name"""
-        ).fetchall()
-        return [dict(cat) for cat in categories]
-
-def get_user_categories(user_id):
-    """
-    Get all custom categories for a user
-    
-    :param user_id: User ID
-    :return: List of user category records
-    """
-    with get_db_connection() as conn:
-        categories = conn.execute(
-            """SELECT 
-                id,
-                user_id,
-                name,
-                display_name,
-                created_at
-            FROM user_categories
-            WHERE user_id = ?
-            ORDER BY display_name""",
-            (user_id,)
-        ).fetchall()
-        return [dict(cat) for cat in categories]
-
-def create_user_category(user_id, name, display_name):
-    """
-    Create a custom user category
-    
-    :param user_id: User ID
-    :param name: Category name (uppercase, normalized)
-    :param display_name: Display name (as user typed it)
-    :return: New category ID
-    :raises sqlite3.IntegrityError: If category already exists
-    """
-    with get_db_connection() as conn:
-        # Check if this name exists in system categories
-        system_exists = conn.execute(
-            "SELECT id FROM system_categories WHERE name = ?",
-            (name,)
-        ).fetchone()
-        
-        if system_exists:
-            raise sqlite3.IntegrityError(
-                f"Category '{name}' already exists as a system category"
-            )
-        
-        # Check if user already has this category
-        user_exists = conn.execute(
-            "SELECT id FROM user_categories WHERE user_id = ? AND name = ?",
-            (user_id, name)
-        ).fetchone()
-        
-        if user_exists:
-            raise sqlite3.IntegrityError(
-                f"User already has category '{name}'"
-            )
-        
-        # Create category
-        cursor = conn.execute(
-            """INSERT INTO user_categories (user_id, name, display_name)
-               VALUES (?, ?, ?)""",
-            (user_id, name, display_name)
-        )
-        conn.commit()
-        category_id = cursor.lastrowid
-        print(f"User category created successfully with ID: {category_id}")
-        return category_id
-
-def delete_user_category(category_id, user_id):
-    """
-    Delete a user's custom category
-    
-    :param category_id: Category ID to delete
-    :param user_id: User ID (to verify ownership)
-    :return: True if deleted, False if not found
-    """
-    with get_db_connection() as conn:
-        result = conn.execute(
-            "DELETE FROM user_categories WHERE id = ? AND user_id = ?",
-            (category_id, user_id)
-        )
-        conn.commit()
-        
-        if result.rowcount == 0:
-            return False
-        
-        print(f"User category {category_id} deleted successfully")
-        return True
-
 # ==================== EXPENSE FUNCTIONS ====================
 
 def create_expense(user_id, amount, expense_type, system_category_id, 
@@ -401,7 +294,7 @@ def get_system_categories():
             """SELECT
                 id,
                 name,
-                display_name,
+                display_name
             FROM system_categories
             ORDER BY display_name"""
         ).fetchall()
