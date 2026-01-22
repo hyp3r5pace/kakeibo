@@ -103,7 +103,7 @@ Docstrings
 ------------------------------------
 1. Category Management Endpoints (Next Priority)
 To implement:
-pythonGET  /categories              # List all available categories (system + user custom)
+GET  /categories              # List all available categories (system + user custom)
 POST /categories              # Create custom user category
 DELETE /categories/<id>       # Delete custom user category
 Database functions needed:

@@ -5,6 +5,7 @@ import bcrypt
 from database import create_user, get_user_by_email, get_user_by_id
 from auth import auth_bp
 from expenses import expenses_bp
+from categories import categories_bp
 from datetime import timedelta
 
 load_dotenv()
@@ -29,6 +30,7 @@ if ENV == 'production':
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(expenses_bp)
+app.register_blueprint(categories_bp)
 
 @app.route('/')
 def home():

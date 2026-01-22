@@ -387,7 +387,9 @@ def delete_expense(expense_id, user_id):
         
         print(f"Expense {expense_id} deleted successfully")
         return True
-    
+
+# ==================== CATEGORY FUNCTIONS ====================
+
 def get_system_categories():
     """
     Get all system categories
