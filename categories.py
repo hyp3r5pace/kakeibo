@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify, session
 import sqlite3
-from database import get_system_categories, get_user_categories, create_custom_user_category, delete_user_category
+from database import get_system_categories, get_user_categories, create_user_category, delete_user_category
 from utils import login_required
 import heapq
+import re
 
 # Create blueprint
 categories_bp = Blueprint('categories', __name__)
@@ -17,13 +18,13 @@ def get_categories():
     
     try:
         try:
-            system_categories = [cat.display_name for cat in get_system_categories(user_id)]
+            system_categories = [cat['display_name'] for cat in get_system_categories()]
         except Exception as e:
             print(f"Get system category error: {e}")
             return jsonify({"error": "Internal server error"}), 500
         
         try:
-            user_categories = [cat.display_name for cat in get_user_categories(user_id)]
+            user_categories = [cat['display_name'] for cat in get_user_categories()]
         except Exception as e:
             print(f"Get user category error: {e}")
             return jsonify({"error": "Internal server error"}), 500
@@ -33,7 +34,7 @@ def get_categories():
         return jsonify({
             "categories": categories,
             "summary": {
-                "count": len(categories)
+                "total": len(categories)
             } 
         }), 200
     except Exception as e:
@@ -60,36 +61,46 @@ def post_category():
         if data is None:
             return jsonify({"error": "Invalid JSON"}), 400
         
-        display_name = data.get('display_name').strip()
+        display_name = data.get('display_name', '').strip()
 
-        if not display_name:
-            return jsonify({"error": "display name cannot be empty"}), 400
+        if len(display_name) > 100:
+            return jsonify({"error": "Category name too long (max 100 characters)"}), 400
+        
+        if not re.match(r'^[a-zA-Z0-9 ]+$', display_name):
+            return jsonify({
+                "error": "Category name can only contain letters, numbers, and spaces"
+            }), 400
+
+        normalized_name = display_name.upper().replace(' ', '_')
         
         # create category in database
-        category_id = create_custom_user_category(
+        category_id = create_user_category(
             user_id,
-            display_name.upper(),
+            normalized_name,
             display_name
         )
 
-        if not category_id:
-            return jsonify({"error": f"{display_name} exist as system category or it already exist as user category"}), 409
-        
-        return jsonify({"message": f"category {display_name} created successfully"}), 200
-    except sqlite3.IntegrityError as e:
-        err_str = str(e).lower()
 
-        if "foreign key constraint" in err_str:
-            return jsonify({"error": "Invalid user ID"}), 400
-        else:
-            print(f"Create expense integrity error: {e}")
-            return jsonify({"error": "Constraint violation"}), 400
+        return jsonify({
+            "message": f"Category '{display_name}' created successfully",
+            "category": {
+                "id": category_id,
+                "name": normalized_name,
+                "display_name": display_name,
+                "type": "user"
+            }
+        }), 201
+    
+    except sqlite3.IntegrityError as e:
+        return jsonify({
+            "error": f"Category '{display_name}' already exists"
+        }), 409
     except Exception as e:
-            print(f"Create expense integrity error: {e}")
+            print(f"Create category error: {e}")
             return jsonify({"error": "Constraint violation"}), 400
     
     
-@categories_bp.route('/categories/<int:category_id>', methods=['POST'])
+@categories_bp.route('/categories/<int:category_id>', methods=['DELETE'])
 @login_required
 def delete_user_category_route(category_id):
     """
