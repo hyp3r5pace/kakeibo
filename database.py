@@ -1,82 +1,190 @@
+# database.py
 import sqlite3
-DATABASE_NAME = 'expenses.db'
+import os
 
 def get_db_connection():
     """
-    Create and return a database connection
-    Enables foreign key support and sets row factory for dict like access    
+    Create a connection to the SQLite database
+    
+    :return: Database connection with row_factory set to sqlite3.Row
     """
-    conn = sqlite3.connect(DATABASE_NAME)
-    conn.execute('PRAGMA foreign_keys = ON')
-    conn.row_factory = sqlite3.Row
+    db_path = os.path.join(os.path.dirname(__file__), 'expenses.db')
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row  # Enable column access by name
     return conn
 
 def init_db():
     """
-    Initialize the database by executing schema.sql
-    This creates all tables and inserts seed data
+    Initialize the database with schema from schema.sql
     """
-    try:
-        with get_db_connection() as conn:
-            with open('schema.sql', 'r') as f:
-                conn.executescript(f.read())
-        print('Database initialized successfully!')
-    except Exception as e:
-        print(f'Database initialization error: {e}')
+    with get_db_connection() as conn:
+        with open('schema.sql', 'r') as f:
+            conn.executescript(f.read())
+        print("Database initialized successfully!")
+
+# ==================== USER FUNCTIONS ====================
 
 def create_user(email, password_hash, first_name, last_name):
     """
-    DB query to create a user profile
+    Create a new user
     
-    :param email: email ID of the user
-    :param password_hash: password hash of the user
-    :return New user's ID if successful, None if failed
+    :param email: User's email address
+    :param password_hash: Bcrypt hashed password
+    :param first_name: User's first name
+    :param last_name: User's last name
+    :return: New user ID
+    :raises sqlite3.IntegrityError: If email already exists
     """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO users (first_name, last_name, email, password_hash) VALUES (?,?,?,?)", (first_name, last_name, email, password_hash))
-            conn.commit()
-            user_id = cursor.lastrowid
-            print(f"User created successfully with ID: {user_id}")
-            return user_id
-    except sqlite3.IntegrityError as e:
-        print(f"User creation failed - email already exists: {email}")
-        return None
-    except Exception as e:
-        print(f"User creation failed with error: {e}")
-        return None
+    with get_db_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO users (email, password_hash, first_name, last_name)
+               VALUES (?, ?, ?, ?)""",
+            (email, password_hash, first_name, last_name)
+        )
+        conn.commit()
+        user_id = cursor.lastrowid
+        print(f"User created successfully with ID: {user_id}")
+        return user_id
 
 def get_user_by_email(email):
     """
-    Retrieve a user by their email address.
+    Get user by email address
     
-    :param email: User's email address
-    :return: User row as dict-like object, or None if not found
+    :param email: Email address
+    :return: User record as dict or None if not found
     """
     with get_db_connection() as conn:
         user = conn.execute(
             "SELECT * FROM users WHERE email = ?",
-            (email, )
+            (email,)
         ).fetchone()
-        return user
-    
+        return dict(user) if user else None
+
 def get_user_by_id(user_id):
     """
-    Retrieve a user by their ID.
+    Get user by ID
     
-    :param user_id: User's ID
-    :return: User row as dict-like object, or None if not found
+    :param user_id: User ID
+    :return: User record as dict or None if not found
     """
     with get_db_connection() as conn:
         user = conn.execute(
             "SELECT * FROM users WHERE id = ?",
             (user_id,)
         ).fetchone()
-        return user
-    
+        return dict(user) if user else None
 
-def create_expense(user_id, amount, expense_type, system_category_id, user_category_id, description, date):
+# ==================== CATEGORY FUNCTIONS ====================
+
+def get_system_categories():
+    """
+    Get all system categories
+    
+    :return: List of system category records
+    """
+    with get_db_connection() as conn:
+        categories = conn.execute(
+            """SELECT 
+                id,
+                name,
+                display_name,
+                created_at
+            FROM system_categories
+            ORDER BY display_name"""
+        ).fetchall()
+        return [dict(cat) for cat in categories]
+
+def get_user_categories(user_id):
+    """
+    Get all custom categories for a user
+    
+    :param user_id: User ID
+    :return: List of user category records
+    """
+    with get_db_connection() as conn:
+        categories = conn.execute(
+            """SELECT 
+                id,
+                user_id,
+                name,
+                display_name,
+                created_at
+            FROM user_categories
+            WHERE user_id = ?
+            ORDER BY display_name""",
+            (user_id,)
+        ).fetchall()
+        return [dict(cat) for cat in categories]
+
+def create_user_category(user_id, name, display_name):
+    """
+    Create a custom user category
+    
+    :param user_id: User ID
+    :param name: Category name (uppercase, normalized)
+    :param display_name: Display name (as user typed it)
+    :return: New category ID
+    :raises sqlite3.IntegrityError: If category already exists
+    """
+    with get_db_connection() as conn:
+        # Check if this name exists in system categories
+        system_exists = conn.execute(
+            "SELECT id FROM system_categories WHERE name = ?",
+            (name,)
+        ).fetchone()
+        
+        if system_exists:
+            raise sqlite3.IntegrityError(
+                f"Category '{name}' already exists as a system category"
+            )
+        
+        # Check if user already has this category
+        user_exists = conn.execute(
+            "SELECT id FROM user_categories WHERE user_id = ? AND name = ?",
+            (user_id, name)
+        ).fetchone()
+        
+        if user_exists:
+            raise sqlite3.IntegrityError(
+                f"User already has category '{name}'"
+            )
+        
+        # Create category
+        cursor = conn.execute(
+            """INSERT INTO user_categories (user_id, name, display_name)
+               VALUES (?, ?, ?)""",
+            (user_id, name, display_name)
+        )
+        conn.commit()
+        category_id = cursor.lastrowid
+        print(f"User category created successfully with ID: {category_id}")
+        return category_id
+
+def delete_user_category(category_id, user_id):
+    """
+    Delete a user's custom category
+    
+    :param category_id: Category ID to delete
+    :param user_id: User ID (to verify ownership)
+    :return: True if deleted, False if not found
+    """
+    with get_db_connection() as conn:
+        result = conn.execute(
+            "DELETE FROM user_categories WHERE id = ? AND user_id = ?",
+            (category_id, user_id)
+        )
+        conn.commit()
+        
+        if result.rowcount == 0:
+            return False
+        
+        print(f"User category {category_id} deleted successfully")
+        return True
+
+# ==================== EXPENSE FUNCTIONS ====================
+
+def create_expense(user_id, amount, expense_type, system_category_id, 
+                   user_category_id, description, date):
     """
     Create a new expense
     
@@ -87,32 +195,37 @@ def create_expense(user_id, amount, expense_type, system_category_id, user_categ
     :param user_category_id: ID from user_categories (nullable)
     :param description: Optional description
     :param date: Date of expense (YYYY-MM-DD format)
-    :return: New expense ID if successful, None if failed
+    :return: New expense ID
+    :raises sqlite3.IntegrityError: If constraints are violated
     """
-
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.execute(
-                """INSERT INTO expenses 
-                (user_id, amount, type, system_category_id, user_category_id, description, date)
-                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (user_id, amount, expense_type, system_category_id, user_category_id, description, date)
-            )
-            conn.commit()
-            expense_id = cursor.lastrowid
-            print(f"Expense created successfully with ID: {expense_id}")
-            return expense_id
-    except Exception as e:
-        print(f"Expense creation failed: {e}")
-        return None
-        
+    with get_db_connection() as conn:
+        cursor = conn.execute(
+            """INSERT INTO expenses 
+               (user_id, amount, type, system_category_id, user_category_id, description, date)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, amount, expense_type, system_category_id, user_category_id, description, date)
+        )
+        conn.commit()
+        expense_id = cursor.lastrowid
+        print(f"Expense created successfully with ID: {expense_id}")
+        return expense_id
 
 def get_user_expenses(user_id, start_date=None, end_date=None, 
                       system_category_id=None, user_category_id=None, 
                       expense_type=None):
-
+    """
+    Get all expenses for a user with optional filters
+    
+    :param user_id: User ID
+    :param start_date: Optional start date filter (YYYY-MM-DD)
+    :param end_date: Optional end date filter (YYYY-MM-DD)
+    :param system_category_id: Optional system category filter
+    :param user_category_id: Optional user category filter
+    :param expense_type: Optional type filter ('expense' or 'income')
+    :return: List of expense records
+    """
     with get_db_connection() as conn:
-        # Build WHERE dynamically
+        # Build WHERE conditions
         where_conditions = ["e.user_id = ?"]
         params = [user_id]
         
@@ -193,7 +306,6 @@ def get_expense_by_id(expense_id, user_id):
         
         return dict(expense) if expense else None
 
-
 def update_expense(expense_id, user_id, amount=None, expense_type=None, 
                    system_category_id=None, user_category_id=None, 
                    description=None, date=None):
@@ -208,60 +320,52 @@ def update_expense(expense_id, user_id, amount=None, expense_type=None,
     :param user_category_id: New user category (optional)
     :param description: New description (optional)
     :param date: New date (optional)
-    :return: True if successful, False if failed
+    :return: True if successful, False if not found
     """
-    try:
-        with get_db_connection() as conn:
-            # Build UPDATE query dynamically
-            updates = []
-            params = []
-            
-            if amount is not None:
-                updates.append("amount = ?")
-                params.append(amount)
-            
-            if expense_type is not None:
-                updates.append("type = ?")
-                params.append(expense_type)
-            
-            if system_category_id is not None:
-                updates.append("system_category_id = ?")
-                params.append(system_category_id)
-            
-            if user_category_id is not None:
-                updates.append("user_category_id = ?")
-                params.append(user_category_id)
-            
-            if description is not None:
-                updates.append("description = ?")
-                params.append(description)
-            
-            if date is not None:
-                updates.append("date = ?")
-                params.append(date)
-            
-            if not updates:
-                print("No fields to update")
-                return False
-            
-            # Execute update with ownership verification
-            query = f"UPDATE expenses SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
-            params.extend([expense_id, user_id])
-            
-            result = conn.execute(query, params)
-            conn.commit()
-            
-            # Check if any rows were updated
-            if result.rowcount == 0:
-                print(f"Expense {expense_id} not found or doesn't belong to user {user_id}")
-                return False
-            
-            print(f"Expense {expense_id} updated successfully")
-            return True
-            
-    except Exception as e:
-        print(f"Expense update failed: {e}")
-        return False
+    with get_db_connection() as conn:
+        # Build UPDATE query dynamically
+        updates = []
+        params = []
+        
+        if amount is not None:
+            updates.append("amount = ?")
+            params.append(amount)
+        
+        if expense_type is not None:
+            updates.append("type = ?")
+            params.append(expense_type)
+        
+        if system_category_id is not None:
+            updates.append("system_category_id = ?")
+            params.append(system_category_id)
+        
+        if user_category_id is not None:
+            updates.append("user_category_id = ?")
+            params.append(user_category_id)
+        
+        if description is not None:
+            updates.append("description = ?")
+            params.append(description)
+        
+        if date is not None:
+            updates.append("date = ?")
+            params.append(date)
+        
+        if not updates:
+            return False
+        
+        # Execute update with ownership verification
+        query = f"UPDATE expenses SET {', '.join(updates)} WHERE id = ? AND user_id = ?"
+        params.extend([expense_id, user_id])
+        
+        result = conn.execute(query, params)
+        conn.commit()
+        
+        if result.rowcount == 0:
+            return False
+        
+        print(f"Expense {expense_id} updated successfully")
+        return True
 
 def delete_expense(expense_id, user_id):
     """
@@ -269,26 +373,122 @@ def delete_expense(expense_id, user_id):
     
     :param expense_id: Expense ID to delete
     :param user_id: User ID (to verify ownership)
+    :return: True if successful, False if not found
+    """
+    with get_db_connection() as conn:
+        result = conn.execute(
+            "DELETE FROM expenses WHERE id = ? AND user_id = ?",
+            (expense_id, user_id)
+        )
+        conn.commit()
+        
+        if result.rowcount == 0:
+            return False
+        
+        print(f"Expense {expense_id} deleted successfully")
+        return True
+    
+def get_system_categories():
+    """
+    Get all system categories
+
+    :return List of system category records
+    """
+    with get_db_connection() as conn:
+        categories = conn.execute(
+            """SELECT
+                id,
+                name,
+                display_name,
+            FROM system_categories
+            ORDER BY display_name"""
+        ).fetchall()
+        return [dict(cat) for cat in categories]
+
+def get_user_categories(user_id):
+    """
+    Get all custom categories for a user
+    
+    :param user_id: User ID
+    :return: List of user category records
+    """
+    with get_db_connection() as conn:
+        categories = conn.execute(
+            """SELECT 
+                id,
+                user_id,
+                name,
+                display_name,
+                created_at
+            FROM user_categories
+            WHERE user_id = ?
+            ORDER BY display_name""",
+            (user_id,)
+        ).fetchall()
+        return [dict(cat) for cat in categories]
+
+def create_custom_user_category(user_id, name, display_name):
+    """
+    Create a custom user category
+    
+    :param user_id: User ID
+    :param name: Category name (uppercase, normalized)
+    :param display_name: Display name (as user typed it)
+    :return: New category ID if successful, None if failed
+    """
+    with get_db_connection() as conn:
+        system_exists = conn.execute(
+            "SELECT id FROM system_categories WHERE name = ?",
+            (name,)
+        ).fetchone()
+
+        if system_exists:
+            print(f"Category: '{name}' already exist as system category")
+            return None
+        
+        user_exists = conn.execute(
+            "SELECT id FROM user_categories WHERE user_id = ? AND name = ?",
+            (user_id, name)
+        ).fetchone()
+
+        if user_exists:
+            print(f"User {user_id} already has category '{name}'")
+            return None
+        
+        # Create category
+        cursor = conn.execute(
+            """INSERT INTO user_categories (user_id, name, display_name)
+            VALUES (?, ?, ?)""",
+            (user_id, name, display_name)
+        )
+        conn.commit()
+        category_id = cursor.lastrowid
+        print(f"User category created successfully with ID: {category_id}")
+        return category_id            
+    
+def delete_user_category(category_id, user_id):
+    """
+    Delete a user's custom category
+    
+    :param category_id: Category ID to delete
+    :param user_id: User ID (to verify ownership)
     :return: True if successful, False if failed
     """
-    try:
-        with get_db_connection() as conn:
-            # Verify expense exists and belongs to user before deleting
-            result = conn.execute(
-                "DELETE FROM expenses WHERE id = ? AND user_id = ?",
-                (expense_id, user_id)
-            )
-            conn.commit()
-            
-            if result.rowcount == 0:
-                print(f"Expense {expense_id} not found or doesn't belong to user {user_id}")
-                return False
-            
-            print(f"Expense {expense_id} deleted successfully")
-            return True        
-    except Exception as e:
-        print(f"Expense deletion failed: {e}")
-        return False
+    with get_db_connection() as conn:
+        # Verify category exists and belongs to user
+        result = conn.execute(
+            "DELETE FROM user_categories WHERE id = ? AND user_id = ?",
+            (category_id, user_id)
+        )
+        conn.commit()
+
+        if result.rowcount == 0:
+            print(f"Category {category_id} not found or doesn't belong to user {user_id}")
+            return False
+        print(f"User category {category_id} deleted successfully")
+        return True
+
+    
 
 if __name__ == "__main__":
     init_db()

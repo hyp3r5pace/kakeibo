@@ -1,0 +1,191 @@
+Option 3: Advanced Features
+Add more sophisticated functionality:
+Analytics/Reporting:
+pythonGET /analytics/summary        # Monthly spending breakdown
+GET /analytics/trends         # Spending trends over time
+GET /analytics/by-category    # Category-wise analysis
+Recurring Expenses:
+
+Track subscriptions/recurring bills
+Auto-create expenses on schedule
+
+Budget Management:
+
+Set budgets per category
+Alert when approaching limit
+
+Export/Import:
+
+Export expenses as CSV/Excel
+Import from bank statements
+
+
+Option 4: Testing
+Write tests to ensure your code works correctly:
+python# test_auth.py
+def test_register():
+    response = client.post('/register', json={...})
+    assert response.status_code == 201
+
+# test_expenses.py
+def test_create_expense():
+    # Login first
+    # Create expense
+    # Assert success
+This teaches:
+
+Unit testing with pytest
+Integration testing
+Test-driven development (TDD)
+
+
+Option 5: Deployment
+Take your app to production:
+Steps:
+
+Migrate to PostgreSQL (from SQLite)
+Add Redis for sessions
+Deploy to cloud (Heroku, Railway, AWS, DigitalOcean)
+Set up HTTPS
+Configure environment variables
+Add logging and monitoring
+
+This teaches:
+
+Production deployment
+Database migrations
+Environment configuration
+DevOps basics
+
+
+Option 6: Advanced Backend Concepts
+Dive deeper into backend engineering:
+Caching:
+
+Add Redis caching for frequent queries
+Cache invalidation strategies
+
+Pagination:
+pythonGET /expenses?page=1&per_page=20
+Rate Limiting:
+
+Prevent abuse (max 100 requests/minute per user)
+
+Background Jobs:
+
+Send email reports (Celery)
+Process large CSV imports asynchronously
+
+API Versioning:
+
+/api/v1/expenses vs /api/v2/expenses
+
+WebSockets:
+
+Real-time updates when expenses added
+
+
+Option 7: Refactoring & Best Practices
+Improve code quality:
+Add:
+
+Environment-based configuration (dev, staging, prod)
+Proper logging (not just print())
+Error monitoring (Sentry)
+API documentation (Swagger/OpenAPI)
+Database migrations (Alembic)
+Code formatting (Black)
+Type hints
+Docstrings
+
+
+
+------------------------------------
+1. Category Management Endpoints (Next Priority)
+To implement:
+pythonGET  /categories              # List all available categories (system + user custom)
+POST /categories              # Create custom user category
+DELETE /categories/<id>       # Delete custom user category
+Database functions needed:
+
+get_system_categories() - List all system categories
+get_user_categories(user_id) - List user's custom categories
+create_user_category(user_id, name, display_name) - Create custom category
+delete_user_category(category_id, user_id) - Delete custom category
+
+Challenges to handle:
+
+Prevent duplicate categories (case-insensitive)
+Prevent creating custom category with same name as system category
+Handle deletion when expenses reference the category (SET NULL behavior)
+
+
+2. Testing (Important for Production Readiness)
+Types of tests to write:
+
+Unit tests for database functions
+Integration tests for API endpoints
+Test authentication flows
+Test authorization (can't access other users' data)
+Test edge cases (invalid inputs, missing fields)
+
+Tools to learn:
+
+pytest (testing framework)
+fixtures (setup/teardown test data)
+test client (make requests without running server)
+
+
+3. Frontend (Make it Tangible)
+Options:
+
+Simple HTML + JavaScript (vanilla JS)
+React SPA (modern framework)
+Flask templates with Jinja2 (server-side rendering)
+
+Pages needed:
+
+Login/Register page
+Dashboard (expense list with filters)
+Create/Edit expense form
+Analytics/charts (spending trends)
+
+
+4. Advanced Features (Optional)
+Analytics:
+
+Monthly spending breakdown
+Category-wise spending pie charts
+Income vs expense trends over time
+Budget tracking and alerts
+
+Enhancements:
+
+Pagination for expense list (GET /expenses?page=1&per_page=20)
+Export to CSV/Excel
+Recurring expenses/subscriptions
+Multi-currency support
+Receipt uploads (file handling)
+
+
+5. Production Deployment (Real-World Experience)
+Steps:
+
+Migrate from SQLite to PostgreSQL
+Set up Redis for session storage
+Deploy to cloud (Heroku, Railway, DigitalOcean, AWS)
+Configure HTTPS (Let's Encrypt)
+Set up environment variables
+Add logging and monitoring (Sentry for errors)
+Database migrations (Alembic)
+
+
+6. Code Quality Improvements
+Additions:
+
+API documentation (Swagger/OpenAPI)
+Comprehensive error handling
+Logging instead of print statements
+Type hints for better code clarity
+More robust input validation
+Rate limiting (prevent API abuse)
