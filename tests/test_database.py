@@ -1,6 +1,14 @@
 import pytest
 import bcrypt
-from database import create_user, get_user_by_email, get_user_by_id, create_expense
+from database import (create_user,
+                      get_user_by_email,
+                      get_user_by_id,
+                      create_expense,
+                      get_user_expenses,
+                      get_expense_by_id,
+                      update_expense,
+                      delete_expense
+                    )
 import sqlite3
 
 def test_database_fixture_works(test_db):
@@ -70,16 +78,18 @@ def test_get_user_by_id(sample_user, insert_test_user):
     """
     Test retreiving user by ID
     """
+
+    test_user = sample_user()
     user = get_user_by_id(insert_test_user)
 
     assert user["id"] is not None
     assert user["id"] > 0
-    assert user["first_name"] == sample_user['first_name']
-    assert user["last_name"] == sample_user["last_name"]
-    assert user["email"] == sample_user["email"]
+    assert user["first_name"] == test_user['first_name']
+    assert user["last_name"] == test_user["last_name"]
+    assert user["email"] == test_user["email"]
 
 
-def test_get_user_by_id_not_found(sample_user):
+def test_get_user_by_id_not_found():
     """
     Test retreiving user by ID which does not exist
     """
@@ -90,7 +100,7 @@ def test_get_user_by_id_not_found(sample_user):
 
 # ======================= EXPENSES TEST ==========================
 
-def test_create_valid_expense_for_existing_user(test_db, sample_user, insert_test_user):
+def test_create_valid_expense_for_existing_user(test_db, insert_test_user):
     """
     Test creating a valid expense for a existing user
     """
@@ -123,5 +133,78 @@ def test_create_valid_expense_for_invalid_user(test_db):
         create_expense(10, amount, expense_type)
 
 
+def test_get_user_expenses(insert_test_expense):
+    """
+    Test getting expense for a user
+    """
+    expense_id, user_id = insert_test_expense
+    expense_list = get_user_expenses(user_id)
+
+    assert len(expense_list) == 1
+    
+    stored_expense = expense_list[0]
+
+    assert stored_expense['id'] == expense_id
+    assert stored_expense["user_id"] == user_id
+
+
+def test_get_expense_by_id(insert_test_expense):
+    """
+    Test for getting expense corresponding a specific expense ID and user ID
+    """
+    expense_id, user_id = insert_test_expense
+    expense = get_expense_by_id(expense_id, user_id)
+    
+    assert expense is not None
+    assert expense["id"] == expense_id
+    assert expense["user_id"] == user_id
+
+
+def test_get_expense_by_id_not_found(insert_test_user):
+    """
+    Test for getting expense corresponding a
+    non existing expense ID and user ID 
+    """
+    expense = get_expense_by_id(10, insert_test_user)
+    
+    assert expense is None
+
+
+def test_update_expense(test_db, insert_test_expense):
+    """
+    Test for updating an existing expense
+    """
+    expense_id, user_id = insert_test_expense
+    success = update_expense(expense_id, user_id, 75, "income")
+
+    assert success == True
+
+    cursor = test_db.execute("SELECT * from expenses where id = ? and user_id = ?", (expense_id, user_id))
+    expense = cursor.fetchone()
+
+    assert expense["amount"] == 75
+    assert expense["type"] == "income"
+
+def test_update_expense_not_found(test_db, insert_test_user):
+    """
+    Test for updating an non existing expense
+    """
+    success = update_expense(10, insert_test_user, 75, "income")
+
+    assert success == False
+
+def test_delete_expense(test_db, insert_test_expense):
+    """
+    Test for deleting an existing expense
+    """
+    expense_id, user_id = insert_test_expense
+    success = delete_expense(expense_id, user_id)
+
+    assert success == True
+
+    cursor = test_db.execute("SELECT * FROM expenses where id = ?", (expense_id,))
+    expense = cursor.fetchone()
+    
+    assert expense is None
 
 
