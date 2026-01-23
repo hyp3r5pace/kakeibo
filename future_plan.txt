@@ -101,7 +101,7 @@ Docstrings
 
 
 ------------------------------------
-1. Category Management Endpoints (Next Priority)
+1. Category Management Endpoints (Next Priority) (DONE)
 To implement:
 GET  /categories              # List all available categories (system + user custom)
 POST /categories              # Create custom user category

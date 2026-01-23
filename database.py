@@ -1,6 +1,7 @@
 # database.py
 import sqlite3
 import os
+from datetime import date
 
 def get_db_connection():
     """
@@ -76,8 +77,8 @@ def get_user_by_id(user_id):
 
 # ==================== EXPENSE FUNCTIONS ====================
 
-def create_expense(user_id, amount, expense_type, system_category_id, 
-                   user_category_id, description, date):
+def create_expense(user_id, amount, expense_type, system_category_id=None, 
+                   user_category_id=None, description="", date=date.today().isoformat()):
     """
     Create a new expense
     
