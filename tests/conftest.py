@@ -93,7 +93,10 @@ def insert_test_user(test_db, sample_user):
         VALUES (?, ?, ?, ?)""",
         (user['email'], password_hash, user["first_name"], user["last_name"])
     )
+    test_db.commit()
+
     yield cursor.lastrowid
+
 
 @pytest.fixture
 def sample_expense():
@@ -123,5 +126,27 @@ def insert_test_expense(test_db, insert_test_user, sample_expense):
             VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (insert_test_user, *expense.values())
     )
+    test_db.commit()
 
     yield (cursor.lastrowid, insert_test_user)
+
+@pytest.fixture
+def insert_test_category(test_db, insert_test_user):
+    def _insert_test_category(categories=["test category"]):
+        """
+        fixture to create a new user category
+        """
+        category_id_list = []
+        for cat in categories:
+            cursor = test_db.execute(
+                """INSERT INTO user_categories (user_id, name, display_name)
+                   VALUES (?, ?, ?)""",
+                   (insert_test_user, cat.strip().upper().replace(' ', '_'), cat.strip())
+            )
+            category_id_list.append(cursor.lastrowid)
+        test_db.commit()
+
+        return (category_id_list, insert_test_user)
+    return _insert_test_category
+
+

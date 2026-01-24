@@ -1,14 +1,6 @@
 import pytest
 import bcrypt
-from database import (create_user,
-                      get_user_by_email,
-                      get_user_by_id,
-                      create_expense,
-                      get_user_expenses,
-                      get_expense_by_id,
-                      update_expense,
-                      delete_expense
-                    )
+from database import *
 import sqlite3
 
 def test_database_fixture_works(test_db):
@@ -206,5 +198,120 @@ def test_delete_expense(test_db, insert_test_expense):
     expense = cursor.fetchone()
     
     assert expense is None
+
+
+# ======================= CATEGORY TEST ==========================
+
+
+def test_get_system_categories(test_db):
+    """
+    Test for fetching system categories
+    """
+    cateogry_list = get_system_categories()
+
+    assert cateogry_list is not None
+
+
+def test_get_user_category(insert_test_category):
+    """
+    Test for fetching user categories of a existing user
+    """
+    category_id_list, user_id = insert_test_category(["food", "groccery"])
+    num_categories = len(category_id_list)
+    category_list = get_user_categories(user_id)
+
+    assert len(category_list) == num_categories
+
+def test_get_user_category_not_found(test_db):
+    """
+    Test for fetching user categories of a non-existing user
+    """
+
+    category_list = get_user_categories(10)
+    assert category_list == []
+
+def test_create_user_category(test_db, insert_test_user):
+    """
+    Test for creating category for an existing user
+    """
+    cat_name = ['anime', 'netflix', 'gym']
+    cat_id_list = []
+    for cat in cat_name:
+        cat_id = create_user_category(insert_test_user, cat.upper().replace(' ', '_'), cat)
+        cat_id_list.append(cat_id)
+    
+    assert len(cat_id_list) == len(cat_name)
+    
+    for cat_id in cat_id_list:
+        cat = test_db.execute(
+            """SELECT * FROM user_categories WHERE user_id = ?
+            AND id = ?
+            """,
+            (insert_test_user, cat_id)
+        ).fetchone()
+
+        assert cat["display_name"] in cat_name
+
+
+def test_create_duplicate_user_category_returns_error(insert_test_category):
+    """
+    Test for creating a duplicate user category for an existing user
+    """
+    _, user_id = insert_test_category()
+    cat = "test category"
+
+    with pytest.raises(sqlite3.IntegrityError, match="User already has category"):
+        create_user_category(user_id, cat.upper().replace(' ', '_'), cat)
+
+def test_create_system_category_as_user_category_returns_error(test_db, insert_test_user):
+    """
+    Test for creating a system category as a user category
+    """
+    cat = "grocery"
+    with pytest.raises(sqlite3.IntegrityError, match="already exists as a system category"):
+        create_user_category(insert_test_user, cat.upper().replace(' ', '_'), cat)
+
+
+def test_delete_user_category(test_db, insert_test_category):
+    """
+    Test deleting already existing user categories
+    """
+    category_id_list, user_id = insert_test_category()
+    for cat_id in category_id_list:
+        success = delete_user_category(cat_id, user_id)
+        assert success == True
+    
+    for cat_id in category_id_list:
+        category = test_db.execute(
+            """SELECT * FROM user_categories WHERE id = ?
+            AND user_id = ?
+            """,
+            (cat_id, user_id)
+        ).fetchone()
+        assert category is None
+
+def test_delete_non_existing_user_category_returns_false(insert_test_user):
+    """
+    Test deleting non existent user category
+    """
+    success = delete_user_category(10, insert_test_user)
+    assert success == False
+
+
+    
+
+    
+
+
+    
+    
+    
+
+
+
+    
+    
+
+
 
 
