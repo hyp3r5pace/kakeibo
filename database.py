@@ -12,6 +12,7 @@ def get_db_connection():
     db_path = os.path.join(os.path.dirname(__file__), 'expenses.db')
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row  # Enable column access by name
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db():
@@ -106,7 +107,7 @@ def create_expense(user_id, amount, expense_type, system_category_id=None,
 
 def get_user_expenses(user_id, start_date=None, end_date=None, 
                       system_category_id=None, user_category_id=None, 
-                      expense_type=None):
+                      expense_type=None, page=1, per_page=20):
     """
     Get all expenses for a user with optional filters
     
@@ -116,6 +117,8 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
     :param system_category_id: Optional system category filter
     :param user_category_id: Optional user category filter
     :param expense_type: Optional type filter ('expense' or 'income')
+    :param page: Optional page number, determines offset
+    :param per_page: Optional number of expenses per page
     :return: List of expense records
     """
     with get_db_connection() as conn:
@@ -144,9 +147,18 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
             params.append(expense_type)
         
         where_clause = " AND ".join(where_conditions)
+
+        count_query = f"""
+            SELECT COUNT(*) as total
+            FROM expenses e
+            WHERE {where_clause}
+        """
+        total_count = conn.execute(count_query, params).fetchone()['total']
+
+        offset = (page-1) * per_page
         
         # Query filters first, then joins
-        query = f"""
+        data_query = f"""
             SELECT 
                 e.id,
                 e.user_id,
@@ -163,11 +175,16 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
             LEFT JOIN system_categories sc ON e.system_category_id = sc.id
             LEFT JOIN user_categories uc ON e.user_category_id = uc.id
             WHERE {where_clause}
-            ORDER BY e.date DESC, e.created_at DESC
+            ORDER BY e.date DESC, e.id DESC
+            LIMIT ? OFFSET ?
         """
         
-        expenses = conn.execute(query, params).fetchall()
-        return [dict(expense) for expense in expenses]
+        params = params + [per_page, offset]
+        expenses = conn.execute(data_query, params).fetchall()
+        return {
+            'expenses': [dict(expense) for expense in expenses],
+            'total_count': total_count
+        }
 
 def get_expense_by_id(expense_id, user_id):
     """
@@ -388,7 +405,6 @@ def delete_user_category(category_id, user_id):
             return False
         print(f"User category {category_id} deleted successfully")
         return True
-
     
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ def get_categories():
             return jsonify({"error": "Internal server error"}), 500
         
         try:
-            user_categories = [cat['display_name'] for cat in get_user_categories()]
+            user_categories = [cat['display_name'] for cat in get_user_categories(user_id)]
         except Exception as e:
             print(f"Get user category error: {e}")
             return jsonify({"error": "Internal server error"}), 500
@@ -62,6 +62,9 @@ def post_category():
             return jsonify({"error": "Invalid JSON"}), 400
         
         display_name = data.get('display_name', '').strip()
+
+        if not display_name:
+            return jsonify({"error": "display_name is required"}), 400
 
         if len(display_name) > 100:
             return jsonify({"error": "Category name too long (max 100 characters)"}), 400
@@ -111,7 +114,7 @@ def delete_user_category_route(category_id):
         success = delete_user_category(category_id, user_id)
 
         if not success:
-            return jsonify({"error: category not found"}), 404
+            return jsonify({"error": "category not found"}), 404
         
         return jsonify({"message": "Category deleted successfully"}), 200
     except Exception as e:

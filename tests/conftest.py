@@ -150,3 +150,25 @@ def insert_test_category(test_db, insert_test_user):
     return _insert_test_category
 
 
+@pytest.fixture
+def insert_test_multiple_expenses(test_db, insert_test_user):
+    def insert_test_expenses(num_expense = 50):
+        """
+        Fixture to create multiple expenses
+        
+        :param num_expense = number of expenses (default: 50)
+        """
+        data = [(insert_test_user, 100+i, 'expense', None, None, "", date.today().isoformat()) for i in range(num_expense)]
+        query = """
+            INSERT INTO expenses
+            (user_id, amount, type, system_category_id, user_category_id, description, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)"""
+        cursor = test_db.executemany(
+            query,
+            data
+        )
+        test_db.commit()
+    
+    return insert_test_expenses
+
+

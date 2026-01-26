@@ -2,6 +2,7 @@ import pytest
 import bcrypt
 from database import *
 import sqlite3
+from datetime import date
 
 def test_database_fixture_works(test_db):
     """
@@ -125,21 +126,6 @@ def test_create_valid_expense_for_invalid_user(test_db):
         create_expense(10, amount, expense_type)
 
 
-def test_get_user_expenses(insert_test_expense):
-    """
-    Test getting expense for a user
-    """
-    expense_id, user_id = insert_test_expense
-    expense_list = get_user_expenses(user_id)
-
-    assert len(expense_list) == 1
-    
-    stored_expense = expense_list[0]
-
-    assert stored_expense['id'] == expense_id
-    assert stored_expense["user_id"] == user_id
-
-
 def test_get_expense_by_id(insert_test_expense):
     """
     Test for getting expense corresponding a specific expense ID and user ID
@@ -169,7 +155,7 @@ def test_update_expense(test_db, insert_test_expense):
     expense_id, user_id = insert_test_expense
     success = update_expense(expense_id, user_id, 75, "income")
 
-    assert success == True
+    assert success
 
     cursor = test_db.execute("SELECT * from expenses where id = ? and user_id = ?", (expense_id, user_id))
     expense = cursor.fetchone()
@@ -183,7 +169,7 @@ def test_update_expense_not_found(test_db, insert_test_user):
     """
     success = update_expense(10, insert_test_user, 75, "income")
 
-    assert success == False
+    assert not success
 
 def test_delete_expense(test_db, insert_test_expense):
     """
@@ -199,6 +185,89 @@ def test_delete_expense(test_db, insert_test_expense):
     
     assert expense is None
 
+
+def test_get_user_expenses_pagination_first_page(test_db, insert_test_user, insert_test_multiple_expenses):
+    """
+    Test first page returns correct items
+    """
+    insert_test_multiple_expenses()
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=20)
+
+    assert len(result['expenses']) == 20
+    assert result['total_count'] == 50
+    assert result['expenses'][-1]['id'] == 31
+
+def test_get_user_expense_pagination_last_page(test_db, insert_test_user, insert_test_multiple_expenses):
+    """
+    Test last page returns correct items
+    """
+    insert_test_multiple_expenses(25)
+
+    result = get_user_expenses(insert_test_user, page=2, per_page=20)
+
+    assert len(result['expenses']) == 5
+    assert result['total_count'] == 25
+    assert result['expenses'][-1]['id'] == 1
+
+def test_get_user_expenses_pagination_empty_page(test_db, insert_test_user, insert_test_multiple_expenses):
+    """Test page beyond range returns empty"""
+    
+    insert_test_multiple_expenses(10)
+    result = get_user_expenses(insert_test_user, page=5, per_page=20)
+
+    assert len(result['expenses']) == 0
+    assert result['total_count'] == 10
+
+def test_get_user_expenses_pagination_with_filters(test_db, insert_test_user):
+    """
+    Test pagination works with filters
+    """
+    data = [(insert_test_user, 100+i, 'expense' if i%2 == 0 else 'income', None, None, "", date.today().isoformat()) for i in range(30)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(
+        insert_test_user,
+        expense_type='expense',
+        page=1,
+        per_page=10
+    )
+
+    assert len(result['expenses']) == 10
+    assert result['total_count'] == 15
+    assert all(e['type'] == 'expense' for e in result['expenses'])
+
+
+def test_get_user_expenses_pagination_order(test_db, insert_test_user):
+    """
+    Test results are ordered correctly
+    """
+    dates = ['2024-01-01', '2024-01-05', '2024-01-03']
+    data = [(insert_test_user, 100+i, 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=10)
+    expenses = result['expenses']
+
+    assert expenses[0]['date'] == '2024-01-05'
+    assert expenses[1]['date'] == '2024-01-03'
+    assert expenses[2]['date'] == '2024-01-01'
 
 # ======================= CATEGORY TEST ==========================
 
@@ -279,7 +348,7 @@ def test_delete_user_category(test_db, insert_test_category):
     category_id_list, user_id = insert_test_category()
     for cat_id in category_id_list:
         success = delete_user_category(cat_id, user_id)
-        assert success == True
+        assert success
     
     for cat_id in category_id_list:
         category = test_db.execute(
@@ -295,7 +364,7 @@ def test_delete_non_existing_user_category_returns_false(insert_test_user):
     Test deleting non existent user category
     """
     success = delete_user_category(10, insert_test_user)
-    assert success == False
+    assert not success
 
 
     

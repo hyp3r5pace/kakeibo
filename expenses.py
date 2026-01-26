@@ -121,17 +121,27 @@ def list_expenses():
     """
     Get all expenses for logged-in user with optional filters
     Query parameters:
+        - page: Page number (default: 1, min: 1)
+        - per_page: Items per page (default: 20, min: 1, max: 100)
         - start_date: Filter by start date (YYYY-MM-DD)
         - end_date: Filter by end date (YYYY-MM-DD)
         - system_category_id: Filter by system category ID
         - user_category_id: Filter by user category ID
         - type: Filter by type ('expense' or 'income')
-    
-    Example: GET /expenses?start_date=2026-01-01&end_date=2026-01-31&type=expense
+
+    Example: GET /expenses?page=2&per_page=50&start_date=2026-01-01&end_date=2026-01-31&type=expense
     """
     user_id = session['user_id']
     
     try:
+        # Extract and validate pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+
+        # validate and clamp
+        page = max(1, page)
+        per_page = max(1, min(100, per_page))
+
         # Get query parameters (filters)
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
@@ -157,14 +167,24 @@ def list_expenses():
                 return jsonify({"error": "Invalid user_category_id"}), 400
         
         # Get expenses from database
-        expenses = get_user_expenses(
+        result = get_user_expenses(
             user_id=user_id,
             start_date=start_date,
             end_date=end_date,
             system_category_id=system_category_id,
             user_category_id=user_category_id,
-            expense_type=expense_type
+            expense_type=expense_type,
+            page=page,
+            per_page=per_page
         )
+
+        expenses = result['expenses']
+        total_count = result['total_count']
+
+        total_pages = (total_count + per_page - 1) // per_page
+
+        has_previous = page > 1
+        has_next = page < total_pages
         
         # Calculate summary statistics
         total_expenses = sum(e['amount'] for e in expenses if e['type'] == 'expense')
@@ -173,6 +193,14 @@ def list_expenses():
         
         return jsonify({
             "expenses": expenses,
+            "pagination": {
+                "page": page,
+                "per_page": per_page,
+                "total_items": total_count,
+                "total_pages": total_pages,
+                "has_previous": has_previous,
+                "has_next": has_next 
+            },
             "summary": {
                 "count": len(expenses),
                 "total_expenses": total_expenses,
