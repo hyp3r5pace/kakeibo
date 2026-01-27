@@ -395,6 +395,72 @@ def test_get_user_expenses_sort_with_pagination(test_db, insert_test_user):
     assert expenses[0]['amount'] == 30
     assert expenses[-1]['amount'] == 11
 
+def test_get_user_expenses_greater_than_min_amount(test_db, insert_test_user):
+    """
+    Test if min_amount filter works correctly
+    """
+    data = [(insert_test_user, i, 'expense', None, None, "", date.today().isoformat()) for i in range(1, 51)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+    result = get_user_expenses(insert_test_user, per_page=50, sort_by='amount', order='desc', min_amount=11)
+    expenses = result['expenses']
+
+    assert len(expenses) == 40
+    assert expenses[0]['amount'] == 50
+    assert expenses[-1]['amount'] == 11
+
+
+def test_get_user_expenses_less_than_max_amount(test_db, insert_test_user):
+    """
+    Test if max_amount filter works correctly
+    """
+    data = [(insert_test_user, i, 'expense', None, None, "", date.today().isoformat()) for i in range(1, 51)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+    result = get_user_expenses(insert_test_user, per_page=50, sort_by='amount', order='desc', max_amount=25)
+    expenses = result['expenses']
+
+    assert len(expenses) == 25
+    assert expenses[0]['amount'] == 25
+    assert expenses[-1]['amount'] == 1
+
+
+def test_get_user_expenses_more_than_min_amount_and_less_than_max_amount(test_db, insert_test_user):
+    """
+    Test if both min_amount and max_amount filter works correctly
+    """
+    data = [(insert_test_user, i, 'expense', None, None, "", date.today().isoformat()) for i in range(1, 51)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+    result = get_user_expenses(insert_test_user, per_page=50, sort_by='amount', order='desc', min_amount=20, max_amount=25)
+    expenses = result['expenses']
+
+    assert len(expenses) == 6
+    assert expenses[0]['amount'] == 25
+    assert expenses[-1]['amount'] == 20
+
+
 
 # ======================= CATEGORY TEST ==========================
 

@@ -108,7 +108,8 @@ def create_expense(user_id, amount, expense_type, system_category_id=None,
 
 def get_user_expenses(user_id, start_date=None, end_date=None, 
                       system_category_id=None, user_category_id=None, 
-                      expense_type=None, page=1, per_page=20, sort_by='date', order='desc'):
+                      expense_type=None, page=1, per_page=20, sort_by='date', order='desc',
+                      min_amount=None, max_amount=None):
     """
     Get all expenses for a user with optional filters
     
@@ -122,6 +123,8 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
     :param per_page: Optional number of expenses per page
     :param sort_by: Column to sort the output by (default='date')
     :param order_by: what order to sort by (ascending or descending) (default='desc')
+    :param min_amount: Optional Minimum amount to filter by
+    :param max_amount: Optional Maximum amount to filter by
     :return: List of expense records
     """
     with get_db_connection() as conn:
@@ -148,6 +151,15 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
         if expense_type:
             where_conditions.append("e.type = ?")
             params.append(expense_type)
+
+        if min_amount is not None:
+            where_conditions.append("e.amount >= ?")
+            params.append(min_amount)
+        
+        if max_amount is not None:
+            where_conditions.append("e.amount <= ?")
+            params.append(max_amount)
+        
         
         where_clause = " AND ".join(where_conditions)
 

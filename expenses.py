@@ -129,6 +129,8 @@ def list_expenses():
         - per_page: Items per page (default: 20, min: 1, max: 100)
         - sort_by: Sort field ('date', 'amount', 'created_at'), default: 'date'
         - order: Sort order ('asc', 'desc'), default: 'desc'
+        - min_amount: Filter by min amount
+        - max_amount: Filter by max amount
         - start_date: Filter by start date (YYYY-MM-DD)
         - end_date: Filter by end date (YYYY-MM-DD)
         - system_category_id: Filter by system category ID
@@ -136,7 +138,7 @@ def list_expenses():
         - type: Filter by type ('expense' or 'income')
 
     Example:
-        GET /expenses?sort_by=amount&order=desc&page=1&per_page=20
+        GET /expenses?sort_by=amount&order=desc&page=1&per_page=20&min_amount=100&max_amount=500
         GET /expenses?sort_by=date&order=asc&type=expense
     """
     user_id = session['user_id']
@@ -166,6 +168,8 @@ def list_expenses():
         system_category_id = request.args.get('system_category_id')
         user_category_id = request.args.get('user_category_id')
         expense_type = request.args.get('type')
+        min_amount = request.args.get('min_amount', type=float)
+        max_amount = request.args.get('max_amount', type=float)
         
         # Validate type if provided
         if expense_type and expense_type not in ['expense', 'income']:
@@ -183,6 +187,15 @@ def list_expenses():
                 user_category_id = int(user_category_id)
             except ValueError:
                 return jsonify({"error": "Invalid user_category_id"}), 400
+            
+        if min_amount is not None and min_amount < 0:
+            return jsonify({"error": "min_amount must be non-negative"}), 400
+        
+        if max_amount is not None and max_amount < 0:
+            return jsonify({"error": "max_amount must be non-negative"}), 400
+
+        if min_amount is not None and max_amount is not None and min_amount > max_amount:
+            return jsonify({"error": "min_amount cannot be greater than max_amount"}), 400
         
         # Get expenses from database
         result = get_user_expenses(
@@ -195,7 +208,9 @@ def list_expenses():
             page=page,
             per_page=per_page,
             sort_by=sort_by,
-            order=order_by
+            order=order_by,
+            min_amount=min_amount,
+            max_amount=max_amount
         )
 
         expenses = result['expenses']
