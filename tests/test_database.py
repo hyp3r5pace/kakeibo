@@ -3,6 +3,7 @@ import bcrypt
 from database import *
 import sqlite3
 from datetime import date
+import time
 
 def test_database_fixture_works(test_db):
     """
@@ -246,12 +247,10 @@ def test_get_user_expenses_pagination_with_filters(test_db, insert_test_user):
     assert all(e['type'] == 'expense' for e in result['expenses'])
 
 
-def test_get_user_expenses_pagination_order(test_db, insert_test_user):
-    """
-    Test results are ordered correctly
-    """
-    dates = ['2024-01-01', '2024-01-05', '2024-01-03']
-    data = [(insert_test_user, 100+i, 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+def test_get_user_expenses_sort_by_date_desc(test_db, insert_test_user):
+    """Test default sort (date descending)"""
+    dates = ['2024-01-01', '2024-01-15', '2024-01-10']
+    data = [(insert_test_user, 100*(i+1), 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
     query = """
         INSERT INTO expenses
         (user_id, amount, type, system_category_id, user_category_id, description, date)
@@ -265,9 +264,137 @@ def test_get_user_expenses_pagination_order(test_db, insert_test_user):
     result = get_user_expenses(insert_test_user, page=1, per_page=10)
     expenses = result['expenses']
 
-    assert expenses[0]['date'] == '2024-01-05'
-    assert expenses[1]['date'] == '2024-01-03'
+    assert expenses[0]['date'] == '2024-01-15'
+    assert expenses[1]['date'] == '2024-01-10'
     assert expenses[2]['date'] == '2024-01-01'
+
+
+def test_get_user_expenses_sort_by_date_asc(test_db, insert_test_user):
+    """Test sort by date ascending"""
+    dates = ['2024-01-01', '2024-01-15', '2024-01-10']
+    data = [(insert_test_user, 100*(i+1), 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=10, sort_by='date', order='asc')
+    expenses = result['expenses']
+
+    assert expenses[0]['date'] == '2024-01-01'
+    assert expenses[1]['date'] == '2024-01-10'
+    assert expenses[2]['date'] == '2024-01-15'
+
+
+def test_get_user_expenses_sort_by_amount_desc(test_db, insert_test_user):
+    """Test sort by amount ascending"""
+    dates = ['2024-01-01', '2024-01-15', '2024-01-10']
+    data = [(insert_test_user, 100*(i+1), 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=10, sort_by='amount', order='desc')
+    expenses = result['expenses']
+
+    assert expenses[0]['date'] == '2024-01-10'
+    assert expenses[1]['date'] == '2024-01-15'
+    assert expenses[2]['date'] == '2024-01-01'
+
+
+
+def test_get_user_expenses_sort_by_created_at_desc(test_db, insert_test_user):
+    """Test sort by amount ascending"""
+    dates = ['2024-01-01', '2024-01-15', '2024-01-10']
+    data = [(insert_test_user, 100*(i+1), 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.execute(
+        query,
+        data[0]
+    )
+    test_db.commit()
+    id1 = cursor.lastrowid
+    time.sleep(0.01)
+    cursor = test_db.execute(
+        query,
+        data[1]
+    )
+    test_db.commit()
+    id2 = cursor.lastrowid
+    time.sleep(0.01)
+    cursor = test_db.execute(
+        query,
+        data[2]
+    )
+    test_db.commit()
+    id3 = cursor.lastrowid
+    time.sleep(0.01)
+
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=10, sort_by='created_at', order='desc')
+    expenses = result['expenses']
+
+    assert expenses[0]['id'] == id3
+    assert expenses[1]['id'] == id2
+    assert expenses[2]['id'] == id1
+
+
+def test_get_user_expenses_sort_with_same_values(test_db, insert_test_user):
+    """Test sort by amount, but all have same amount value"""
+    dates = ['2024-01-01', '2024-01-15', '2024-01-10']
+    data = [(insert_test_user, 100, 'expense', None, None, "", expense_date) for i, expense_date in enumerate(dates)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(insert_test_user, page=1, per_page=10, sort_by='amount', order='desc')
+    expenses = result['expenses']
+
+    assert expenses[0]['date'] == '2024-01-10'
+    assert expenses[1]['date'] == '2024-01-15'
+    assert expenses[2]['date'] == '2024-01-01'
+
+
+def test_get_user_expenses_sort_with_pagination(test_db, insert_test_user):
+    """Test sorting works correctly with pagination"""
+    data = [(insert_test_user, i, 'expense', None, None, "", date.today().isoformat()) for i in range(1, 51)]
+    query = """
+        INSERT INTO expenses
+        (user_id, amount, type, system_category_id, user_category_id, description, date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)"""
+    cursor = test_db.executemany(
+        query,
+        data
+    )
+    test_db.commit()
+
+    result = get_user_expenses(insert_test_user, page=2, per_page=20, sort_by='amount', order='desc')
+    expenses = result['expenses']
+
+    assert len(expenses) == 20
+    assert expenses[0]['amount'] == 30
+    assert expenses[-1]['amount'] == 11
+
 
 # ======================= CATEGORY TEST ==========================
 

@@ -11,6 +11,10 @@ from database import (
     delete_expense
 )
 
+
+ALLOWED_SORT_FIELDS = ['date', 'amount', 'created_at']
+ALLOWED_SORT_ORDERS = ['asc', 'desc']
+
 expenses_bp = Blueprint('expenses', __name__)
 
 
@@ -123,13 +127,17 @@ def list_expenses():
     Query parameters:
         - page: Page number (default: 1, min: 1)
         - per_page: Items per page (default: 20, min: 1, max: 100)
+        - sort_by: Sort field ('date', 'amount', 'created_at'), default: 'date'
+        - order: Sort order ('asc', 'desc'), default: 'desc'
         - start_date: Filter by start date (YYYY-MM-DD)
         - end_date: Filter by end date (YYYY-MM-DD)
         - system_category_id: Filter by system category ID
         - user_category_id: Filter by user category ID
         - type: Filter by type ('expense' or 'income')
 
-    Example: GET /expenses?page=2&per_page=50&start_date=2026-01-01&end_date=2026-01-31&type=expense
+    Example:
+        GET /expenses?sort_by=amount&order=desc&page=1&per_page=20
+        GET /expenses?sort_by=date&order=asc&type=expense
     """
     user_id = session['user_id']
     
@@ -141,6 +149,16 @@ def list_expenses():
         # validate and clamp
         page = max(1, page)
         per_page = max(1, min(100, per_page))
+
+        # extract the sort_by and order_by value
+        sort_by = request.args.get('sort_by', 'desc', type=str).lower().strip()
+        order_by = request.args.get('order_by', 'desc', type=str).lower().strip()
+
+        if sort_by not in ALLOWED_SORT_FIELDS:
+            sort_by = 'date'
+        
+        if order_by not in ALLOWED_SORT_ORDERS:
+            order_by = 'desc'
 
         # Get query parameters (filters)
         start_date = request.args.get('start_date')
@@ -175,7 +193,9 @@ def list_expenses():
             user_category_id=user_category_id,
             expense_type=expense_type,
             page=page,
-            per_page=per_page
+            per_page=per_page,
+            sort_by=sort_by,
+            order=order_by
         )
 
         expenses = result['expenses']

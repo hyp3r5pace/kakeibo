@@ -2,6 +2,7 @@
 import sqlite3
 import os
 from datetime import date
+import time
 
 def get_db_connection():
     """
@@ -107,7 +108,7 @@ def create_expense(user_id, amount, expense_type, system_category_id=None,
 
 def get_user_expenses(user_id, start_date=None, end_date=None, 
                       system_category_id=None, user_category_id=None, 
-                      expense_type=None, page=1, per_page=20):
+                      expense_type=None, page=1, per_page=20, sort_by='date', order='desc'):
     """
     Get all expenses for a user with optional filters
     
@@ -119,6 +120,8 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
     :param expense_type: Optional type filter ('expense' or 'income')
     :param page: Optional page number, determines offset
     :param per_page: Optional number of expenses per page
+    :param sort_by: Column to sort the output by (default='date')
+    :param order_by: what order to sort by (ascending or descending) (default='desc')
     :return: List of expense records
     """
     with get_db_connection() as conn:
@@ -156,6 +159,17 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
         total_count = conn.execute(count_query, params).fetchone()['total']
 
         offset = (page-1) * per_page
+
+        sort_column_map = {
+            'date': 'e.date',
+            'amount': 'e.amount',
+            'created_at': 'e.created_at'
+        }
+
+        sort_column = sort_column_map[sort_by]
+        order_direction = order.upper()
+
+        order_by_clause = f"{sort_column} {order_direction}, e.id {order_direction}"
         
         # Query filters first, then joins
         data_query = f"""
@@ -175,12 +189,19 @@ def get_user_expenses(user_id, start_date=None, end_date=None,
             LEFT JOIN system_categories sc ON e.system_category_id = sc.id
             LEFT JOIN user_categories uc ON e.user_category_id = uc.id
             WHERE {where_clause}
-            ORDER BY e.date DESC, e.id DESC
+            ORDER BY {order_by_clause}
             LIMIT ? OFFSET ?
         """
         
         params = params + [per_page, offset]
+
+        start_time = time.time()
         expenses = conn.execute(data_query, params).fetchall()
+        elapsed = time.time() - start_time
+
+        if elapsed > 0.5:  # Log slow queries
+            print(f"SLOW QUERY: sort_by={sort_by}, order={order}, time={elapsed:.2f}s")
+    
         return {
             'expenses': [dict(expense) for expense in expenses],
             'total_count': total_count
